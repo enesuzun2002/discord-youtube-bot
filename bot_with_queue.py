@@ -36,6 +36,27 @@ current_video_title = None  # To store the currently playing video title
 async def on_ready():
     print(f'Logged in as {bot.user}')
 
+
+# Server restriction
+SERVER_ID = int(os.getenv('SERVER_ID'))
+
+@bot.check
+async def globally_allowed_guild_check(ctx):
+    if ctx.guild is None:
+        raise commands.CheckFailure("This bot cannot be used in DMs.")
+    
+    if ctx.guild.id != SERVER_ID:
+        raise commands.CheckFailure(f"This bot can only be used in the specified server.")
+    
+    return True
+
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        await ctx.send(f"Command cannot be used: {error}")
+    else:
+        raise error  # Re-raise other errors
+
 # Command to leave the voice channel
 @bot.command()
 async def leave(ctx):
