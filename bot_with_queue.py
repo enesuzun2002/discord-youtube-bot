@@ -11,6 +11,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+
 def uri_validator(x):
     try:
         result = urlparse(x)
@@ -32,6 +33,7 @@ is_paused = False
 current_timeout_task = None
 current_video_title = None  # To store the currently playing video title
 
+
 @bot.event
 async def on_ready():
     print(f'Logged in as {bot.user}')
@@ -40,15 +42,18 @@ async def on_ready():
 # Server restriction
 SERVER_ID = int(os.getenv('SERVER_ID'))
 
+
 @bot.check
 async def globally_allowed_guild_check(ctx):
     if ctx.guild is None:
         raise commands.CheckFailure("This bot cannot be used in DMs.")
-    
+
     if ctx.guild.id != SERVER_ID:
-        raise commands.CheckFailure(f"This bot can only be used in the specified server.")
-    
+        raise commands.CheckFailure(
+            f"This bot can only be used in the specified server.")
+
     return True
+
 
 @bot.event
 async def on_command_error(ctx, error):
@@ -58,6 +63,8 @@ async def on_command_error(ctx, error):
         raise error  # Re-raise other errors
 
 # Command to leave the voice channel
+
+
 @bot.command()
 async def leave(ctx):
     if ctx.voice_client:
@@ -68,6 +75,8 @@ async def leave(ctx):
         await ctx.send("I'm not in a voice channel!")
 
 # Command to add a song to the queue and play if not already playing
+
+
 @bot.command(aliases=["p"])
 async def play(ctx, *, query):
     global is_playing, is_paused
@@ -81,7 +90,6 @@ async def play(ctx, *, query):
         else:
             await ctx.send("You're not in a voice channel!")
             return
-
 
     if not is_playing and not is_paused:
         if uri_validator(query):
@@ -97,7 +105,7 @@ async def play(ctx, *, query):
     else:
         # If something is playing or paused, add to queue and notify the user
         if uri_validator(query):
-            queue.append(url)
+            queue.append(query)
             await ctx.send(f"Added to queue: {url}")
         else:
             url = search_video(query)
@@ -106,6 +114,7 @@ async def play(ctx, *, query):
                 await ctx.send(f"Added to queue: {url}")
             else:
                 await ctx.send("Could not find a video matching the query.")
+
 
 def search_video(query):
     try:
@@ -117,16 +126,16 @@ def search_video(query):
         url = f"https://www.youtube.com/results?search_query={encoded_query}"
         with urllib.request.urlopen(url) as response:
             html = response.read().decode()
-        
+
         # Extract video IDs from the HTML
         video_ids = re.findall(r"watch\?v=(\S{11})", html)
-        
+
         # Check if video IDs were found
         if video_ids:
             return "https://www.youtube.com/watch?v=" + video_ids[0]
         else:
             return None
-        
+
     except urllib.error.URLError as e:
         print(f"URL error: {e}")
         return None
@@ -138,6 +147,8 @@ def search_video(query):
         return None
 
 # Command to skip the current song
+
+
 @bot.command()
 async def skip(ctx):
     voice_client = ctx.voice_client
@@ -149,6 +160,8 @@ async def skip(ctx):
         await ctx.send("No audio is currently playing.")
 
 # Play the next song in the queue
+
+
 async def play_next(ctx):
     global is_playing, is_paused, current_timeout_task, current_video_title
 
@@ -190,7 +203,8 @@ async def play_next(ctx):
         'options': '-vn'
     }
 
-    voice_client.play(discord.FFmpegPCMAudio(audio_url, **ffmpeg_options), after=lambda e: bot.loop.create_task(play_next(ctx)))
+    voice_client.play(discord.FFmpegPCMAudio(audio_url, **ffmpeg_options),
+                      after=lambda e: bot.loop.create_task(play_next(ctx)))
 
     await ctx.send(f"Now playing: {title}")
 
@@ -200,6 +214,8 @@ async def play_next(ctx):
     current_timeout_task = bot.loop.create_task(timeout_for_song(ctx, title))
 
 # Timeout function for 5-minute limit
+
+
 async def timeout_for_song(ctx, title):
     await asyncio.sleep(5 * 60)  # Wait for 5 minutes (300 seconds)
     voice_client = ctx.voice_client
@@ -210,6 +226,8 @@ async def timeout_for_song(ctx, title):
     await ctx.send("Queue finished.")
 
 # Command to pause the current song
+
+
 @bot.command()
 async def pause(ctx):
     global is_paused
@@ -223,6 +241,8 @@ async def pause(ctx):
         await ctx.send("No audio is currently playing.")
 
 # Command to resume the paused song
+
+
 @bot.command()
 async def resume(ctx):
     global is_paused
@@ -236,6 +256,8 @@ async def resume(ctx):
         await ctx.send("The audio is not paused or no audio is playing.")
 
 # Command to stop the current song
+
+
 @bot.command()
 async def stop(ctx):
     global is_playing, is_paused, current_video_title
@@ -251,6 +273,8 @@ async def stop(ctx):
         await ctx.send("No audio is currently playing.")
 
 # Command to show the currently playing video
+
+
 @bot.command(aliases=["np"])
 async def now_playing(ctx):
     global current_video_title
@@ -260,6 +284,8 @@ async def now_playing(ctx):
         await ctx.send("No audio is currently playing.")
 
 # Command to show the current queue
+
+
 @bot.command(aliases=["q"])
 async def queue_list(ctx):
     if len(queue) == 0:
@@ -271,6 +297,8 @@ async def queue_list(ctx):
         await ctx.send(message)
 
 # Custom help command
+
+
 @bot.command(aliases=["h"])
 async def help(ctx):
     help_message = (
