@@ -106,7 +106,7 @@ async def play(ctx, *, query):
         # If something is playing or paused, add to queue and notify the user
         if uri_validator(query):
             queue.append(query)
-            await ctx.send(f"Added to queue: {url}")
+            await ctx.send(f"Added to queue: {query}")
         else:
             url = search_video(query)
             if uri_validator(url):
