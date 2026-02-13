@@ -116,6 +116,41 @@ async def play(ctx, *, query):
                 await ctx.send("Could not find a video matching the query.")
 
 
+@bot.command(aliases=["pl"])
+async def play_local(ctx, *, filename):
+    """Plays a file from the local 'content' folder."""
+    global is_playing, is_paused
+
+    # Define your local content directory
+    # You can change "." to a specific folder like "content/"
+    content_folder = "./content"
+    file_path = os.path.join(content_folder, filename)
+
+    # 1. Check if file exists
+    if not os.path.isfile(file_path):
+        await ctx.send(f"File not found: `{filename}` in `{content_folder}`")
+        return
+
+    # 2. Handle Voice Connection
+    voice_client = ctx.voice_client
+    if not voice_client:
+        if ctx.author.voice:
+            channel = ctx.author.voice.channel
+            voice_client = await channel.connect()
+        else:
+            await ctx.send("You're not in a voice channel!")
+            return
+
+    # 3. Add to queue and play
+    # Note: We add the absolute path to the queue
+    queue.append(file_path)
+
+    if not is_playing and not is_paused:
+        await play_next(ctx)
+    else:
+        await ctx.send(f"Added local file to queue: {filename}")
+
+
 def search_video(query):
     try:
         # Prepare the query
@@ -166,7 +201,6 @@ async def play_next(ctx):
     global is_playing, is_paused, current_timeout_task, current_video_title
 
     if len(queue) == 0:
-        await ctx.send("Queue is empty, nothing to play.")
         is_playing = False
         return
 
@@ -174,43 +208,39 @@ async def play_next(ctx):
     is_paused = False
     voice_client = ctx.voice_client
     if not voice_client:
-        await ctx.send("Voice client is not connected.")
         return
 
-    url = queue.pop(0)  # Get the first URL from the queue
+    source = queue.pop(0)
 
-    await ctx.send(f"Fetching video stream: {url}")
+    # Check if the source is a URL or a local file path
+    if uri_validator(source):
+        # YOUTUBE LOGIC
+        await ctx.send(f"Fetching video stream: {source}")
+        ydl_opts = {'format': 'bestaudio/best',
+                    'noplaylist': True, 'quiet': True}
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(source, download=False)
+            audio_source = info_dict['url']
+            title = info_dict.get('title', 'Unknown Title')
+    else:
+        # LOCAL FILE LOGIC
+        audio_source = source
+        title = os.path.basename(source)
 
-    # yt-dlp options to get audio stream URL
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'noplaylist': True,
-        'quiet': True,
-        'no_warnings': True,
-        'extract_flat': True,  # Extract metadata only
-    }
+    current_video_title = title
 
-    # Get the stream URL from YouTube
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info_dict = ydl.extract_info(url, download=False)
-        audio_url = info_dict['url']
-        title = info_dict.get('title', 'Unknown Title')
-        current_video_title = title  # Store the current video title
-
-    # Use FFmpeg to stream the audio directly to Discord
     ffmpeg_options = {
-        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
+        'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5' if uri_validator(source) else '',
         'options': '-vn'
     }
 
-    voice_client.play(discord.FFmpegPCMAudio(audio_url, **ffmpeg_options),
+    voice_client.play(discord.FFmpegPCMAudio(audio_source, **ffmpeg_options),
                       after=lambda e: bot.loop.create_task(play_next(ctx)))
 
     await ctx.send(f"Now playing: {title}")
 
-    # Start a 5-minute timeout to stop after inactivity
     if current_timeout_task:
-        current_timeout_task.cancel()  # Cancel any existing timeout task
+        current_timeout_task.cancel()
     current_timeout_task = bot.loop.create_task(timeout_for_song(ctx, title))
 
 # Timeout function for 5-minute limit
